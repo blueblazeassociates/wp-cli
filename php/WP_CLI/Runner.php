@@ -170,7 +170,9 @@ class Runner {
 	 * @param string $path
 	 */
 	private static function set_wp_root( $path ) {
-		define( 'ABSPATH', rtrim( $path, '/' ) . '/' );
+		if ( ! defined ('ABSPATH') ) {
+  		define( 'ABSPATH', rtrim( $path, '/' ) . '/' );
+	  }
 
 		$_SERVER['DOCUMENT_ROOT'] = realpath( $path );
 	}
