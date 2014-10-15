@@ -687,7 +687,12 @@ class Runner {
 		);
 	}
 
-	public function after_wp_load() {
+	/**
+	 * @param string $interactive
+	 *
+	 * @return string
+	 */
+	public function after_wp_load($interactive = true) {
 		add_filter( 'filesystem_method', function() { return 'direct'; }, 99 );
 
 		// Handle --user parameter
@@ -695,7 +700,9 @@ class Runner {
 			self::set_user( $this->config );
 		}
 
-		$this->_run_command();
+		if ( $interactive ) {
+			$this->_run_command();
+		}
 	}
 }
 
