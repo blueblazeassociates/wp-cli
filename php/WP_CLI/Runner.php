@@ -692,7 +692,7 @@ class Runner {
 	 *
 	 * @return string
 	 */
-	public function after_wp_load($interactive = true) {
+  public function after_wp_load( $interactive = true ) {
 		add_filter( 'filesystem_method', function() { return 'direct'; }, 99 );
 
 		// Handle --user parameter
