@@ -268,7 +268,7 @@ class Plugin_Command extends \WP_CLI\CommandWithUpgrade {
 			return new WP_Error( 'already_installed', 'Plugin already installed.' );
 		}
 
-		WP_CLI::log( sprintf( 'Installing %s (%s)', $api->name, $api->version ) );
+		WP_CLI::log( sprintf( 'Installing %s (%s)', html_entity_decode( $api->name, ENT_QUOTES ), $api->version ) );
 		if ( !isset( $assoc_args['version'] ) || 'dev' !== $assoc_args['version'] ) {
 			WP_CLI::get_http_cache_manager()->whitelist_package( $api->download_link, $this->item_type, $api->slug, $api->version );
 		}
@@ -313,13 +313,18 @@ class Plugin_Command extends \WP_CLI\CommandWithUpgrade {
 	}
 
 	protected function get_item_list() {
-		$items = array();
+		$items = $duplicate_names = array();
 
 		foreach ( get_plugins() as $file => $details ) {
 			$update_info = $this->get_update_info( $file );
 
+			$name = Utils\get_plugin_name( $file );
+			if ( ! isset( $duplicate_names[ $name ] ) ) {
+				$duplicate_names[ $name ] = array();
+			}
+			$duplicate_names[ $name ][] = $file;
 			$items[ $file ] = array(
-				'name' => Utils\get_plugin_name( $file ),
+				'name' => $name,
 				'status' => $this->get_status( $file ),
 				'update' => (bool) $update_info,
 				'update_version' => $update_info['new_version'],
@@ -329,6 +334,15 @@ class Plugin_Command extends \WP_CLI\CommandWithUpgrade {
 				'title' => $details['Name'],
 				'description' => $details['Description'],
 			);
+		}
+
+		foreach( $duplicate_names as $name => $files ) {
+			if ( count( $files ) <= 1 ) {
+				continue;
+			}
+			foreach( $files as $file ) {
+				$items[ $file ]['name'] = str_replace( '.' . pathinfo( $file, PATHINFO_EXTENSION ), '', $file ); 
+			}
 		}
 
 		return $items;
@@ -429,7 +443,7 @@ class Plugin_Command extends \WP_CLI\CommandWithUpgrade {
 	 * <plugin>...
 	 * : One or more plugins to uninstall.
 	 *
-	 * [--no-delete]
+	 * [--skip-delete]
 	 * : If set, the plugin files will not be deleted. Only the uninstall procedure
 	 * will be run.
 	 *
@@ -446,8 +460,10 @@ class Plugin_Command extends \WP_CLI\CommandWithUpgrade {
 
 			uninstall_plugin( $plugin->file );
 
-			if ( !isset( $assoc_args['no-delete'] ) && $this->_delete( $plugin ) ) {
-				WP_CLI::success( "Uninstalled '$plugin->name' plugin." );
+			if ( !isset( $assoc_args['skip-delete'] ) && $this->_delete( $plugin ) ) {
+				WP_CLI::success( "Uninstalled and deleted '$plugin->name' plugin." );
+			} else {
+				WP_CLI::success( "Ran uninstall procedure for '$plugin->name' plugin without deleting." );
 			}
 		}
 	}

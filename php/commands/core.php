@@ -35,7 +35,7 @@ class Core_Command extends WP_CLI_Command {
 		$versions_path = ABSPATH . 'wp-includes/version.php';
 		include $versions_path;
 
-		$url = 'http://api.wordpress.org/core/stable-check/1.0/';
+		$url = 'https://api.wordpress.org/core/stable-check/1.0/';
 
 		$options = array(
 			'timeout' => 30
@@ -125,7 +125,8 @@ class Core_Command extends WP_CLI_Command {
 
 		if ( !is_dir( ABSPATH ) ) {
 			WP_CLI::log( sprintf( 'Creating directory %s', ABSPATH ) );
-			WP_CLI::launch( Utils\esc_cmd( 'mkdir -p %s', ABSPATH ) );
+			$mkdir = \WP_CLI\Utils\is_windows() ? 'mkdir %s' : 'mkdir -p %s';
+			WP_CLI::launch( Utils\esc_cmd( $mkdir, ABSPATH ) );
 		}
 
 		$locale = isset( $assoc_args['locale'] ) ? $assoc_args['locale'] : 'en_US';
@@ -223,7 +224,12 @@ class Core_Command extends WP_CLI_Command {
 
 	private static function _read( $url ) {
 		$headers = array('Accept' => 'application/json');
-		return Utils\http_request( 'GET', $url, null, $headers )->body;
+		$response = Utils\http_request( 'GET', $url, null, $headers, array( 'timeout' => 30 ) );
+		if ( 200 === $response->status_code ) {
+			return $response->body;
+		} else {
+			WP_CLI::error( "Couldn't fetch response from {$url} (HTTP code {$response->status_code})" );
+		}
 	}
 
 	private function get_download_offer( $locale ) {
