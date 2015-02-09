@@ -4,3 +4,7 @@ config.yml
 /vendor
 /*.phar
 /phpunit.xml
+
+.settings
+.buildpath
+.project
