@@ -6,5 +6,5 @@ config.yml
 /phpunit.xml
 
 /.settings
-.buildpath
-.project
+/.buildpath
+/.project
