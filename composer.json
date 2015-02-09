@@ -32,7 +32,9 @@
 			"WP_CLI" : "php"
 		},
 		"files" : [
-			"php/Spyc.php"
+			"php/Spyc.php",
+			"php/class-wp-cli.php",
+			"php/class-wp-cli-command.php"
 		],
 		"classmap" : [
 			"php/export"
