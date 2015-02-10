@@ -8,3 +8,6 @@ config.yml
 /.settings
 /.buildpath
 /.project
+
+/composer.phar
+/composer
