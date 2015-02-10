@@ -25,7 +25,7 @@
     "behat/behat" : "2.5.*"
   },
   "replace" : {
-    "wp-cli/wp-cli" : ">=0.17.0"
+    "wp-cli/wp-cli" : "~0.17"
   },
   "suggest" : {
     "psy/psysh" : "Enhanced `wp shell` functionality"
