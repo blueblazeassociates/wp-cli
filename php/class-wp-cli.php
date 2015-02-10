@@ -453,8 +453,8 @@ class WP_CLI {
 	 * @param array
 	 * @param array
 	 */
-	public static function run_command( $args, $assoc_args = array() ) {
-		self::get_runner()->run_command( $args, $assoc_args );
+	public static function run_command( $args, $assoc_args = array(), $interactive = true ) {
+		self::get_runner()->run_command( $args, $assoc_args, $interactive );
 	}
 
 
