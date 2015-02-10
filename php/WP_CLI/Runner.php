@@ -709,8 +709,7 @@ class Runner {
 	}
 
 	/**
-	 * @param string $interactive
-   * @param bool
+	 * @param bool $interactive
 	 *
 	 * @return string
 	 */
