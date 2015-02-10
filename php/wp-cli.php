@@ -15,6 +15,8 @@ include WP_CLI_ROOT . '/php/dispatcher.php';
 
 \WP_CLI\Utils\load_dependencies();
 
+// egifford 2015_02_10: Guarding inclusion of main classes. This helps protect against loading the class twice when using Composer autoloading.
+// egifford 2015_02_10: Moving inclusion of main classes after the call to load_dependencies. These classes will probably be loaded there.
 if ( ! class_exists( 'WP_CLI' ) ) {
   include WP_CLI_ROOT . '/php/class-wp-cli.php';
 }
