@@ -171,6 +171,7 @@ class Runner {
 	 */
 	private static function set_wp_root( $path ) {
 		if ( ! defined ('ABSPATH') ) {
+		  // egifford 2015_02_10: Guard against redefining ABSPATH.
   		define( 'ABSPATH', rtrim( $path, '/' ) . '/' );
 	  }
 
@@ -285,11 +286,13 @@ class Runner {
 	 *
 	 * @param array $args Positional arguments including command name
 	 * @param array $assoc_args
+   * @param bool
 	 */
 	public function run_command( $args, $assoc_args = array(), $interactive = true ) {
 		$r = $this->find_command_to_run( $args );
 		if ( is_string( $r ) ) {
 		  if ( $interactive ) {
+		    // egifford 2015_02_10: Added $interactive parameter. This allows WP-CLI to be run in non-interactive mode.
 		    WP_CLI::error( $r );
 		  } else {
 		    throw new \RuntimeException( $r );
@@ -310,6 +313,7 @@ class Runner {
 			$command->invoke( $final_args, $assoc_args, $extra_args );
 		} catch ( WP_CLI\Iterators\Exception $e ) {
 			if ( $interactive ) {
+			  // egifford 2015_02_10: Added $interactive parameter. This allows WP-CLI to be run in non-interactive mode.
 			  WP_CLI::error( $e->getMessage() );
 			} else {
 			  throw new \RuntimeException( $e->getMessage() );
@@ -706,6 +710,7 @@ class Runner {
 
 	/**
 	 * @param string $interactive
+   * @param bool
 	 *
 	 * @return string
 	 */
@@ -718,6 +723,7 @@ class Runner {
 		}
 
 		if ( $interactive ) {
+		  // egifford 2015_02_10: Added $interactive parameter. This allows WP-CLI to be run in non-interactive mode.
 			$this->_run_command();
 		}
 	}
