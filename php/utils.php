@@ -430,10 +430,26 @@ function http_request( $method, $url, $data = null, $headers = array(), $options
 		$pem_copied = true;
 	}
 
+	$cache_file = false;
+	if ( $cache_dir = getenv( 'WP_CLI_REQUESTS_CACHE_DIR' ) ) {
+		$cache_key = hash_hmac( 'sha256', 'requests_' . $url . serialize( $headers ) . serialize( $data ) . serialize( $options ), '' );
+		$cache_file = rtrim( $cache_dir, '/' ) . '/' . $cache_key;
+		if ( file_exists( $cache_file ) && is_readable( $cache_file ) ) {
+			return json_decode( file_get_contents( $cache_file ) );
+		}
+	}
+
 	try {
 		$request = \Requests::request( $url, $headers, $data, $method, $options );
 		if ( $pem_copied ) {
 			unlink( $options['verify'] );
+		}
+		if ( ! empty( $cache_file ) ) {
+			$cache_dir = dirname( $cache_file );
+			if ( ! is_dir( $cache_dir ) ) {
+				mkdir( $cache_dir, 0755, true );
+			}
+			file_put_contents( $cache_file, json_encode( $request ) );
 		}
 		return $request;
 	} catch( \Requests_Exception $ex ) {
@@ -449,4 +465,58 @@ function http_request( $method, $url, $data = null, $headers = array(), $options
 			\WP_CLI::error( $ex->getMessage() );
 		}
 	}
+}
+
+/**
+ * Increments a version string using the "x.y.z-pre" format
+ *
+ * Can increment the major, minor or patch number by one
+ * If $new_version == "same" the version string is not changed
+ * If $new_version is not a known keyword, it will be used as the new version string directly
+ *
+ * @param  string $current_version
+ * @param  string $new_version
+ * @return string
+ */
+function increment_version( $current_version, $new_version ) {
+	// split version assuming the format is x.y.z-pre
+	$current_version    = explode( '-', $current_version, 2 );
+	$current_version[0] = explode( '.', $current_version[0] );
+
+	switch ( $new_version ) {
+		case 'same':
+			// do nothing
+		break;
+
+		case 'patch':
+			$current_version[0][2]++;
+
+			$current_version = array( $current_version[0] ); // drop possible pre-release info
+		break;
+
+		case 'minor':
+			$current_version[0][1]++;
+			$current_version[0][2] = 0;
+
+			$current_version = array( $current_version[0] ); // drop possible pre-release info
+		break;
+
+		case 'major':
+			$current_version[0][0]++;
+			$current_version[0][1] = 0;
+			$current_version[0][2] = 0;
+
+			$current_version = array( $current_version[0] ); // drop possible pre-release info
+		break;
+
+		default: // not a keyword
+			$current_version = array( array( $new_version ) );
+		break;
+	}
+
+	// reconstruct version string
+	$current_version[0] = implode( '.', $current_version[0] );
+	$current_version    = implode( '-', $current_version );
+
+	return $current_version;
 }

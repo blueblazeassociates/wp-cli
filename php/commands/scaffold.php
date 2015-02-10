@@ -269,10 +269,12 @@ class Scaffold_Command extends WP_CLI_Command {
 
 		$theme_dir = WP_CONTENT_DIR . "/themes" . "/$theme_slug";
 		$theme_style_path = "$theme_dir/style.css";
+		$theme_functions_path = "$theme_dir/functions.php";
 
 		$this->maybe_create_themes_dir();
 
 		$this->create_file( $theme_style_path, Utils\mustache_render( 'child_theme.mustache', $data ) );
+		$this->create_file( $theme_functions_path, Utils\mustache_render( 'child_theme_functions.mustache', $data ) );
 
 		WP_CLI::success( "Created $theme_dir" );
 
@@ -490,7 +492,7 @@ class Scaffold_Command extends WP_CLI_Command {
 		foreach ( $to_copy as $file => $dir ) {
 			$wp_filesystem->copy( WP_CLI_ROOT . "/templates/$file", "$dir/$file", true );
 			if ( 'install-wp-tests.sh' === $file ) {
-				if ( ! $wp_filesystem->chmod( "$dir/$file", '0755' ) ) {
+				if ( ! $wp_filesystem->chmod( "$dir/$file", 0755 ) ) {
 					WP_CLI::warning( "Couldn't mark install-wp-tests.sh as executable." );
 				}
 			}
@@ -632,4 +634,3 @@ class Scaffold_Command extends WP_CLI_Command {
 }
 
 WP_CLI::add_command( 'scaffold', 'Scaffold_Command' );
-
