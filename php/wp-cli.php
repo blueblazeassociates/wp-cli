@@ -12,10 +12,16 @@ $_SERVER['REMOTE_ADDR'] = '127.0.0.1';
 
 include WP_CLI_ROOT . '/php/utils.php';
 include WP_CLI_ROOT . '/php/dispatcher.php';
-include WP_CLI_ROOT . '/php/class-wp-cli.php';
-include WP_CLI_ROOT . '/php/class-wp-cli-command.php';
 
 \WP_CLI\Utils\load_dependencies();
+
+if ( ! class_exists( 'WP_CLI' ) ) {
+  include WP_CLI_ROOT . '/php/class-wp-cli.php';
+}
+
+if ( ! class_exists( 'WP_CLI_Command' ) ) {
+  include WP_CLI_ROOT . '/php/class-wp-cli-command.php';
+}
 
 WP_CLI::get_runner()->before_wp_load();
 
