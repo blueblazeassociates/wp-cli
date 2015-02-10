@@ -9,5 +9,5 @@ config.yml
 /.buildpath
 /.project
 
-/composer
 /composer.phar
+/composer
