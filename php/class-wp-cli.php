@@ -99,10 +99,14 @@ class WP_CLI {
 
 	private static function set_url_params( $url_parts ) {
 		$f = function( $key ) use ( $url_parts ) {
-			return isset( $url_parts[ $key ] ) ? $url_parts[ $key ] : '';
+			return \WP_CLI\Utils\get_flag_value( $url_parts, $key, '' );
 		};
 
 		if ( isset( $url_parts['host'] ) ) {
+			if ( isset( $url_parts['scheme'] ) && 'https' === strtolower( $url_parts['scheme'] ) ) {
+				$_SERVER['HTTPS'] = 'on';
+			}
+
 			$_SERVER['HTTP_HOST'] = $url_parts['host'];
 			if ( isset( $url_parts['port'] ) ) {
 				$_SERVER['HTTP_HOST'] .= ':' . $url_parts['port'];
@@ -112,7 +116,7 @@ class WP_CLI {
 		}
 
 		$_SERVER['REQUEST_URI'] = $f('path') . ( isset( $url_parts['query'] ) ? '?' . $url_parts['query'] : '' );
-		$_SERVER['SERVER_PORT'] = isset( $url_parts['port'] ) ? $url_parts['port'] : '80';
+		$_SERVER['SERVER_PORT'] = \WP_CLI\Utils\get_flag_value( $url_parts, 'port', '80' );
 		$_SERVER['QUERY_STRING'] = $f('query');
 	}
 
@@ -166,6 +170,10 @@ class WP_CLI {
 	 *   'before_invoke' => callback to execute before invoking the command
 	 */
 	public static function add_command( $name, $class, $args = array() ) {
+		if ( is_string( $class ) && ! class_exists( (string) $class ) ) {
+			WP_CLI::error( sprintf( "Class '%s' does not exist.", $class ) );
+		}
+
 		if ( isset( $args['before_invoke'] ) ) {
 			self::add_hook( "before_invoke:$name", $args['before_invoke'] );
 		}
@@ -248,7 +256,9 @@ class WP_CLI {
 			self::$logger->error( self::error_to_string( $message ) );
 		}
 
-		exit(1);
+		if ( $exit ) {
+			exit(1);
+		}
 	}
 
 	/**
@@ -266,7 +276,7 @@ class WP_CLI {
 	 * Ask for confirmation before running a destructive operation.
 	 */
 	public static function confirm( $question, $assoc_args = array() ) {
-		if ( !isset( $assoc_args['yes'] ) ) {
+		if ( ! \WP_CLI\Utils\get_flag_value( $assoc_args, 'yes' ) ) {
 			fwrite( STDOUT, $question . " [y/n] " );
 
 			$answer = trim( fgets( STDIN ) );
@@ -306,7 +316,7 @@ class WP_CLI {
 	 * @param array $assoc_args
 	 */
 	public static function read_value( $raw_value, $assoc_args = array() ) {
-		if ( isset( $assoc_args['format'] ) && 'json' == $assoc_args['format'] ) {
+		if ( \WP_CLI\Utils\get_flag_value( $assoc_args, 'format' ) === 'json' ) {
 			$value = json_decode( $raw_value, true );
 			if ( null === $value ) {
 				WP_CLI::error( sprintf( 'Invalid JSON: %s', $raw_value ) );
@@ -325,7 +335,7 @@ class WP_CLI {
 	 * @param array $assoc_args
 	 */
 	public static function print_value( $value, $assoc_args = array() ) {
-		if ( isset( $assoc_args['format'] ) && 'json' == $assoc_args['format'] ) {
+		if ( \WP_CLI\Utils\get_flag_value( $assoc_args, 'format' ) === 'json' ) {
 			$value = json_encode( $value );
 		} elseif ( is_array( $value ) || is_object( $value ) ) {
 			$value = var_export( $value );

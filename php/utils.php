@@ -24,7 +24,7 @@ function load_dependencies() {
 	}
 
 	if ( !$has_autoload ) {
-		fputs( STDERR, "Internal error: Can't find Composer autoloader.\n" );
+		fputs( STDERR, "Internal error: Can't find Composer autoloader.\nTry running: composer install\n" );
 		exit(3);
 	}
 }
@@ -430,26 +430,10 @@ function http_request( $method, $url, $data = null, $headers = array(), $options
 		$pem_copied = true;
 	}
 
-	$cache_file = false;
-	if ( $cache_dir = getenv( 'WP_CLI_REQUESTS_CACHE_DIR' ) ) {
-		$cache_key = hash_hmac( 'sha256', 'requests_' . $url . serialize( $headers ) . serialize( $data ) . serialize( $options ), '' );
-		$cache_file = rtrim( $cache_dir, '/' ) . '/' . $cache_key;
-		if ( file_exists( $cache_file ) && is_readable( $cache_file ) ) {
-			return json_decode( file_get_contents( $cache_file ) );
-		}
-	}
-
 	try {
 		$request = \Requests::request( $url, $headers, $data, $method, $options );
 		if ( $pem_copied ) {
 			unlink( $options['verify'] );
-		}
-		if ( ! empty( $cache_file ) ) {
-			$cache_dir = dirname( $cache_file );
-			if ( ! is_dir( $cache_dir ) ) {
-				mkdir( $cache_dir, 0755, true );
-			}
-			file_put_contents( $cache_file, json_encode( $request ) );
 		}
 		return $request;
 	} catch( \Requests_Exception $ex ) {
@@ -519,4 +503,16 @@ function increment_version( $current_version, $new_version ) {
 	$current_version    = implode( '-', $current_version );
 
 	return $current_version;
+}
+
+/**
+ * Return the flag value or, if it's not set, the $default value.
+ *
+ * @param array  $args    Arguments array.
+ * @param string $flag    Flag to get the value.
+ * @param mixed  $default Default value for the flag. Default: NULL
+ * @return mixed
+ */
+function get_flag_value( $args, $flag, $default = null ) {
+	return isset( $args[ $flag ] ) ? $args[ $flag ] : $default;
 }

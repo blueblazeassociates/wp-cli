@@ -53,7 +53,7 @@ Feature: Manage WordPress installation
       Error: wp-config.php not found.
       Either create one manually or use `wp core config`.
       """
-    
+
     Given a wp-config-extra.php file:
       """
       define( 'WP_DEBUG_LOG', true );
@@ -162,6 +162,36 @@ Feature: Manage WordPress installation
       http://localhost:8001
       """
 
+  Scenario: Install WordPress with an https scheme
+    Given an empty directory
+    And WP files
+    And wp-config.php
+    And a database
+
+    When I run `wp core install --url='https://localhost' --title='Test' --admin_user=wpcli --admin_email=admin@example.com --admin_password=1`
+    Then the return code should be 0
+
+    When I run `wp eval 'echo home_url();'`
+    Then STDOUT should be:
+      """
+      https://localhost
+      """
+
+  Scenario: Install WordPress with an https scheme and non-standard port
+    Given an empty directory
+    And WP files
+    And wp-config.php
+    And a database
+
+    When I run `wp core install --url='https://localhost:8443' --title='Test' --admin_user=wpcli --admin_email=admin@example.com --admin_password=1`
+    Then the return code should be 0
+
+    When I run `wp eval 'echo home_url();'`
+    Then STDOUT should be:
+      """
+      https://localhost:8443
+      """
+
   Scenario: Full install
     Given a WP install
 
@@ -173,7 +203,7 @@ Feature: Manage WordPress installation
     Then STDOUT should be:
       """
       false
-      """ 
+      """
 
     When I run `wp eval 'var_export( function_exists( 'media_handle_upload' ) );'`
     Then STDOUT should be:
@@ -225,7 +255,7 @@ Feature: Manage WordPress installation
     Then STDOUT should be:
       """
       foobar.org
-      """ 
+      """
 
     # Can complain that it's already installed, but don't exit with an error code
     When I try `wp core multisite-install --url=foobar.org --title=Test --admin_user=wpcli --admin_email=admin@example.com --admin_password=1`
@@ -296,34 +326,36 @@ Feature: Manage WordPress installation
     When I run `wp core check-update`
     Then STDOUT should be a table containing rows:
       | version | update_type | package_url                               |
-      | 4.1     | major       | https://wordpress.org/wordpress-4.1.zip   |
-      | 4.0.1   | major       | https://wordpress.org/wordpress-4.0.1.zip |
-      | 3.9.3   | major       | https://wordpress.org/wordpress-3.9.3.zip |
-      | 3.8.5   | minor       | https://wordpress.org/wordpress-3.8.5.zip |
+      | 4.2.2   | major       | https://wordpress.org/wordpress-4.2.2.zip |
+      | 4.1.5   | major       | https://wordpress.org/wordpress-4.1.5.zip |
+      | 4.0.5   | major       | https://wordpress.org/wordpress-4.0.5.zip |
+      | 3.9.6   | major       | https://wordpress.org/wordpress-3.9.6.zip |
+      | 3.8.8   | minor       | https://wordpress.org/wordpress-3.8.8.zip |
 
     When I run `wp core check-update --format=count`
     Then STDOUT should be:
       """
-      4
+      5
       """
 
     When I run `wp core check-update --major`
     Then STDOUT should be a table containing rows:
       | version | update_type | package_url                               |
-      | 4.1     | major       | https://wordpress.org/wordpress-4.1.zip   |
-      | 4.0.1   | major       | https://wordpress.org/wordpress-4.0.1.zip |
-      | 3.9.3   | major       | https://wordpress.org/wordpress-3.9.3.zip |
+      | 4.2.2   | major       | https://wordpress.org/wordpress-4.2.2.zip |
+      | 4.1.5   | major       | https://wordpress.org/wordpress-4.1.5.zip |
+      | 4.0.5   | major       | https://wordpress.org/wordpress-4.0.5.zip |
+      | 3.9.6   | major       | https://wordpress.org/wordpress-3.9.6.zip |
 
     When I run `wp core check-update --major --format=count`
     Then STDOUT should be:
       """
-      3
+      4
       """
 
     When I run `wp core check-update --minor`
     Then STDOUT should be a table containing rows:
       | version | update_type | package_url                               |
-      | 3.8.5   | minor       | https://wordpress.org/wordpress-3.8.5.zip |
+      | 3.8.8   | minor       | https://wordpress.org/wordpress-3.8.8.zip |
 
     When I run `wp core check-update --minor --format=count`
     Then STDOUT should be:
@@ -475,6 +507,25 @@ Feature: Manage WordPress installation
       Success: Language activated.
       """
 
+    When I run `wp core language list --fields=language,english_name,update`
+    Then STDOUT should be a table containing rows:
+      | language  | english_name            | update        |
+      | ar        | Arabic                  | none          |
+      | az        | Azerbaijani             | none          |
+      | en_US     | English (United States) | none          |
+      | en_GB     | English (UK)            | available     |
+
+    When I run `wp core language update --dry-run`
+    Then save STDOUT 'Available (\d+) translations updates' as {UPDATES}
+
+    When I run `wp core language update`
+    Then STDOUT should contain:
+      """
+      Success: Updated {UPDATES}/{UPDATES} translations.
+      """
+    And the wp-content/languages/plugins directory should exist
+    And the wp-content/languages/themes directory should exist
+
     When I run `wp core language list --field=language --status=active`
     Then STDOUT should be:
       """
@@ -547,7 +598,7 @@ Feature: Manage WordPress installation
   Scenario: Ensure file cache isn't corrupted by a ZIP masquerading as a gzipped TAR, part one
     Given a WP install
     And an empty cache
-    And I run `mkdir -p {SUITE_CACHE_DIR}/core; wget -O {SUITE_CACHE_DIR}/core/en_US-4.0.tar.gz https://wordpress.org/wordpress-4.0.zip`
+    And I run `mkdir -p {SUITE_CACHE_DIR}/core; wget -O {SUITE_CACHE_DIR}/core/en_US-4.0.tar.gz https://wordpress.org/wordpress-4.0.zip; touch {SUITE_CACHE_DIR}/core/en_US-4.0.tar.gz`
 
     When I run `wp core download --version=4.0 --force`
     Then STDOUT should contain:
@@ -591,4 +642,13 @@ Feature: Manage WordPress installation
     Then STDOUT should be:
       """
       4.0
+      """
+
+  Scenario: Catch download of non-existent WP version
+    Given an empty directory
+
+    When I try `wp core download --version=4.1.0 --force`
+    Then STDERR should contain:
+      """
+      Error: Release not found.
       """

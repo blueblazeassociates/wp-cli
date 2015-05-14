@@ -114,12 +114,8 @@ class Term_Command extends WP_CLI_Command {
 		);
 		$assoc_args = wp_parse_args( $assoc_args, $defaults );
 
-		if ( isset( $assoc_args['porcelain'] ) ) {
-			$porcelain = true;
-			unset( $assoc_args['porcelain'] );
-		} else {
-			$porcelain = false;
-		}
+		$porcelain = \WP_CLI\Utils\get_flag_value( $assoc_args, 'porcelain' );
+		unset( $assoc_args['porcelain'] );
 
 		// Compatibility for < WP 4.0
 		if ( $assoc_args['parent'] > 0 && ! term_exists( (int) $assoc_args['parent'] ) ) {
@@ -282,6 +278,8 @@ class Term_Command extends WP_CLI_Command {
 	 *     wp term generate --count=10
 	 */
 	public function generate( $args, $assoc_args ) {
+		global $wpdb;
+
 		list ( $taxonomy ) = $args;
 
 		$defaults = array(
@@ -306,7 +304,12 @@ class Term_Command extends WP_CLI_Command {
 		$current_parent = 0;
 		$current_depth = 1;
 
-		for ( $i = 0; $i < $count; $i++ ) {
+		$max_id = (int) $wpdb->get_var( "SELECT term_taxonomy_id FROM $wpdb->term_taxonomy ORDER BY term_taxonomy_id DESC LIMIT 1" );
+
+		$suspend_cache_invalidation = wp_suspend_cache_invalidation( true );
+		$created = array();
+
+		for ( $i = $max_id + 1; $i <= $max_id + $count; $i++ ) {
 
 			if ( $hierarchical ) {
 
@@ -329,17 +332,20 @@ class Term_Command extends WP_CLI_Command {
 				'slug' => $slug . "-$i",
 			);
 
-			$term = wp_insert_term( "$label $i", $taxonomy, $args );
+			$name = "$label $i";
+			$term = wp_insert_term( $name, $taxonomy, $args );
 			if ( is_wp_error( $term ) ) {
 				WP_CLI::warning( $term );
 			} else {
+				$created[] = $term['term_id'];
 				$previous_term_id = $term['term_id'];
 			}
 
 			$notify->tick();
 		}
 
-		delete_option( $taxonomy . '_children' );
+		wp_suspend_cache_invalidation( $suspend_cache_invalidation );
+		clean_term_cache( $created, $taxonomy );
 
 		$notify->finish();
 	}

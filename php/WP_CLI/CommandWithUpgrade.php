@@ -10,6 +10,14 @@ abstract class CommandWithUpgrade extends \WP_CLI_Command {
 	protected $upgrade_refresh;
 	protected $upgrade_transient;
 
+	function __construct() {
+		// After updating plugins/themes also update translations by running the `core language update` command.
+		add_action( 'upgrader_process_complete', function() {
+			remove_action( 'upgrader_process_complete', array( 'Language_Pack_Upgrader', 'async_upgrade' ), 20 );
+			\WP_CLI::run_command( array( 'core', 'language', 'update' ), array( 'dry-run' => false ) );
+		}, 1 );
+	}
+
 	abstract protected function get_upgrader_class( $force );
 
 	abstract protected function get_item_list();
@@ -142,12 +150,12 @@ abstract class CommandWithUpgrade extends \WP_CLI_Command {
 			}
 
 			if ( $result ) {
-				if ( isset( $assoc_args['activate-network'] ) ) {
+				if ( \WP_CLI\Utils\get_flag_value( $assoc_args, 'activate-network' ) ) {
 					\WP_CLI::log( "Network-activating '$slug'..." );
 					$this->activate( array( $slug ), array( 'network' => true ) );
 				}
 
-				if ( isset( $assoc_args['activate'] ) ) {
+				if ( \WP_CLI\Utils\get_flag_value( $assoc_args, 'activate' ) ) {
 					\WP_CLI::log( "Activating '$slug'..." );
 					$this->activate( array( $slug ) );
 				}
@@ -195,20 +203,20 @@ abstract class CommandWithUpgrade extends \WP_CLI_Command {
 	}
 
 	protected function get_upgrader( $assoc_args ) {
-		$upgrader_class = $this->get_upgrader_class( isset( $assoc_args['force'] ) );
+		$upgrader_class = $this->get_upgrader_class( \WP_CLI\Utils\get_flag_value( $assoc_args, 'force' ) );
 		return \WP_CLI\Utils\get_upgrader( $upgrader_class );
 	}
 
 	protected function update_many( $args, $assoc_args ) {
 		call_user_func( $this->upgrade_refresh );
 
-		if ( ! isset( $assoc_args['all'] ) && empty( $args ) ) {
+		if ( ! \WP_CLI\Utils\get_flag_value( $assoc_args, 'all' ) && empty( $args ) ) {
 			\WP_CLI::error( "Please specify one or more {$this->item_type}s, or use --all." );
 		}
 
 		$items = $this->get_item_list();
 
-		if ( !isset( $assoc_args['all'] ) ) {
+		if ( ! \WP_CLI\Utils\get_flag_value( $assoc_args, 'all' ) ) {
 			$items = $this->filter_item_list( $items, $args );
 		}
 
@@ -216,7 +224,7 @@ abstract class CommandWithUpgrade extends \WP_CLI_Command {
 			'update' => true
 		) );
 
-		if ( isset( $assoc_args['dry-run'] ) ) {
+		if ( \WP_CLI\Utils\get_flag_value( $assoc_args, 'dry-run' ) ) {
 			if ( empty( $items_to_update ) ) {
 				\WP_CLI::line( "No {$this->item_type} updates available." );
 				return;
@@ -254,6 +262,20 @@ abstract class CommandWithUpgrade extends \WP_CLI_Command {
 			\WP_CLI::warning( $line );
 		} else {
 			\WP_CLI::error( $line );
+		}
+
+		if ($num_to_update > 0) {
+			$status = array();
+			foreach($items_to_update as $item_to_update => $info) {
+				$status[$item_to_update] = array(
+					'name' => $info['name'],
+					'old_version' => $info['version'],
+					'new_version' => $info['update_version'],
+					'status' => $result[$item_to_update] !== null ? 'Updated' : 'Error',
+				);
+			}
+			\WP_CLI\Utils\format_items( 'table', $status,
+				array( 'name', 'old_version', 'new_version', 'status' ) );
 		}
 	}
 
@@ -351,8 +373,8 @@ abstract class CommandWithUpgrade extends \WP_CLI_Command {
 	/**
 	 * Search wordpress.org repo.
 	 *
-	 * @param  object $api        Data from WP plugin/theme API
-	 * @param  array  $assoc_args Data passed in from command.
+	 * @param  array $args       A arguments array containing the search term in the first element.
+	 * @param  array $assoc_args Data passed in from command.
 	 */
 	protected function _search( $args, $assoc_args ) {
 		$term = $args[0];
@@ -386,7 +408,7 @@ abstract class CommandWithUpgrade extends \WP_CLI_Command {
 
 		$items = $api->$plural;
 
-		$count = isset( $api->info['results'] ) ? $api->info['results'] : 'unknown';
+		$count = \WP_CLI\Utils\get_flag_value( $api->info, 'results', 'unknown' );
 		\WP_CLI::success( sprintf( 'Showing %s of %s %s.', count( $items ), $count, $plural ) );
 
 		$formatter->display_items( $items );

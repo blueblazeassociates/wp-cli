@@ -73,8 +73,8 @@ class Core_Command extends WP_CLI_Command {
 				$update_type = 'minor';
 			}
 
-			if ( ! ( isset( $assoc_args['minor'] ) && 'minor' !== $update_type )
-				&& ! ( isset( $assoc_args['major'] ) && 'major' !== $update_type )
+			if ( ! ( \WP_CLI\Utils\get_flag_value( $assoc_args, 'minor' ) && 'minor' !== $update_type )
+				&& ! ( \WP_CLI\Utils\get_flag_value( $assoc_args, 'major' ) && 'major' !== $update_type )
 				) {
 				$updates = $this->remove_same_minor_releases( $release_parts, $updates );
 				$updates[] = array(
@@ -121,7 +121,7 @@ class Core_Command extends WP_CLI_Command {
 	 * @when before_wp_load
 	 */
 	public function download( $args, $assoc_args ) {
-		if ( !isset( $assoc_args['force'] ) && is_readable( ABSPATH . 'wp-load.php' ) )
+		if ( ! \WP_CLI\Utils\get_flag_value( $assoc_args, 'force' ) && is_readable( ABSPATH . 'wp-load.php' ) )
 			WP_CLI::error( 'WordPress files seem to already be present here.' );
 
 		if ( !is_dir( ABSPATH ) ) {
@@ -130,7 +130,7 @@ class Core_Command extends WP_CLI_Command {
 			WP_CLI::launch( Utils\esc_cmd( $mkdir, ABSPATH ) );
 		}
 
-		$locale = isset( $assoc_args['locale'] ) ? $assoc_args['locale'] : 'en_US';
+		$locale = \WP_CLI\Utils\get_flag_value( $assoc_args, 'locale', 'en_US' );
 
 		if ( isset( $assoc_args['version'] ) ) {
 			$version = $assoc_args['version'];
@@ -172,7 +172,12 @@ class Core_Command extends WP_CLI_Command {
 				'filename' => $temp
 			);
 
-			Utils\http_request( 'GET', $download_url, null, $headers, $options );
+			$response = Utils\http_request( 'GET', $download_url, null, $headers, $options );
+			if ( 404 == $response->status_code ) {
+				WP_CLI::error( "Release not found. Double-check locale or version." );
+			} else if ( 20 != substr( $response->status_code, 0, 2 ) ) {
+				WP_CLI::error( "Couldn't access download URL (HTTP code {$response->status_code})" );
+			}
 			self::_extract( $temp, ABSPATH );
 			$cache->import( $cache_key, $temp );
 			unlink($temp);
@@ -336,7 +341,7 @@ class Core_Command extends WP_CLI_Command {
 			WP_CLI::error( '--dbprefix can only contain numbers, letters, and underscores.' );
 
 		// Check DB connection
-		if ( !isset( $assoc_args['skip-check'] ) ) {
+		if ( ! \WP_CLI\Utils\get_flag_value( $assoc_args, 'skip-check' ) ) {
 			Utils\run_mysql_command( 'mysql --no-defaults', array(
 				'execute' => ';',
 				'host' => $assoc_args['dbhost'],
@@ -345,12 +350,12 @@ class Core_Command extends WP_CLI_Command {
 			) );
 		}
 
-		if ( isset( $assoc_args['extra-php'] ) && $assoc_args['extra-php'] === true ) {
+		if ( \WP_CLI\Utils\get_flag_value( $assoc_args, 'extra-php' ) === true ) {
 			$assoc_args['extra-php'] = file_get_contents( 'php://stdin' );
 		}
 
 		// TODO: adapt more resilient code from wp-admin/setup-config.php
-		if ( ! isset( $assoc_args['skip-salts'] ) ) {
+		if ( ! \WP_CLI\Utils\get_flag_value( $assoc_args, 'skip-salts' ) ) {
 			$assoc_args['keys-and-salts'] = self::_read(
 				'https://api.wordpress.org/secret-key/1.1/salt/' );
 		}
@@ -387,7 +392,7 @@ class Core_Command extends WP_CLI_Command {
 	 */
 	public function is_installed( $_, $assoc_args ) {
 
-		if ( isset( $assoc_args['network'] ) ) {
+		if ( \WP_CLI\Utils\get_flag_value( $assoc_args, 'network' ) ) {
 			if ( is_blog_installed() && is_multisite() ) {
 				exit( 0 );
 			} else {
@@ -636,6 +641,7 @@ class Core_Command extends WP_CLI_Command {
 		if ( !is_multisite() ) {
 			ob_start();
 ?>
+define( 'WP_ALLOW_MULTISITE', true );
 define('MULTISITE', true);
 define('SUBDOMAIN_INSTALL', <?php var_export( $assoc_args['subdomains'] ); ?>);
 $base = '<?php echo $assoc_args['base']; ?>';
@@ -734,7 +740,7 @@ define('BLOG_ID_CURRENT_SITE', 1);
 		include $versions_path;
 
 		// @codingStandardsIgnoreStart
-		if ( isset( $assoc_args['extra'] ) ) {
+		if ( \WP_CLI\Utils\get_flag_value( $assoc_args, 'extra' ) ) {
 			if ( preg_match( '/(\d)(\d+)-/', $tinymce_version, $match ) ) {
 				$human_readable_tiny_mce = $match[1] . '.' . $match[2];
 			} else {
@@ -871,7 +877,7 @@ define('BLOG_ID_CURRENT_SITE', 1);
 		if ( ! empty( $args[0] ) ) {
 
 			$upgrader = 'WP_CLI\\NonDestructiveCoreUpgrader';
-			$version = ! empty( $assoc_args['version'] ) ? $assoc_args['version'] : null;
+			$version = \WP_CLI\Utils\get_flag_value( $assoc_args, 'version' );
 
 			$update = (object) array(
 				'response'      => 'upgrade',
@@ -897,10 +903,10 @@ define('BLOG_ID_CURRENT_SITE', 1);
 			}
 
 		} else if (	version_compare( $wp_version, $assoc_args['version'], '<' )
-					|| isset( $assoc_args['force'] ) ) {
+					|| \WP_CLI\Utils\get_flag_value( $assoc_args, 'force' ) ) {
 
 			$version = $assoc_args['version'];
-			$locale = isset( $assoc_args['locale'] ) ? $assoc_args['locale'] : get_locale();
+			$locale = \WP_CLI\Utils\get_flag_value( $assoc_args, 'locale', get_locale() );
 
 			$new_package = $this->get_download_url($version, $locale);
 
@@ -920,7 +926,7 @@ define('BLOG_ID_CURRENT_SITE', 1);
 
 		}
 
-		if ( ! empty( $update ) && ( $update->version != $wp_version || isset( $assoc_args['force'] ) ) ) {
+		if ( ! empty( $update ) && ( $update->version != $wp_version || \WP_CLI\Utils\get_flag_value( $assoc_args, 'force' ) ) ) {
 
 			require_once( ABSPATH . 'wp-admin/includes/upgrade.php' );
 

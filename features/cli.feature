@@ -1,3 +1,4 @@
+@github-api
 Feature: `wp cli` tasks
 
   Scenario: Ability to set a custom version when building
@@ -63,5 +64,16 @@ Feature: `wp cli` tasks
     """
     0.14.1
     """
+    And STDERR should be empty
+    And the return code should be 0
+
+  Scenario: Dump the list of global parameters with values
+    Given a WP install
+
+    When I run `wp cli param-dump --with-values | grep -o '"current":' | uniq -c`
+    Then STDOUT should be:
+      """
+           15 "current":
+      """
     And STDERR should be empty
     And the return code should be 0

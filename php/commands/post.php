@@ -55,9 +55,8 @@ class Post_Command extends \WP_CLI\CommandWithDBObject {
 			$assoc_args['post_content'] = $this->read_from_file_or_stdin( $args[0] );
 		}
 
-		if ( isset( $assoc_args['edit'] ) ) {
-			$input = isset( $assoc_args['post_content'] ) ?
-				$assoc_args['post_content'] : '';
+		if ( \WP_CLI\Utils\get_flag_value( $assoc_args, 'edit' ) ) {
+			$input = \WP_CLI\Utils\get_flag_value( $assoc_args, 'post_content', '' );
 
 			if ( $output = $this->_edit( $input, 'WP-CLI: New Post' ) )
 				$assoc_args['post_content'] = $output;
@@ -195,6 +194,9 @@ class Post_Command extends \WP_CLI\CommandWithDBObject {
 	 *     wp post delete 123 --force
 	 *
 	 *     wp post delete $(wp post list --post_type='page' --format=ids)
+	 *
+	 *     # delete all posts in the trash
+	 *     wp post delete $(wp post list --post_status=trash --format=ids)
 	 */
 	public function delete( $args, $assoc_args ) {
 		$defaults = array(
@@ -203,10 +205,11 @@ class Post_Command extends \WP_CLI\CommandWithDBObject {
 		$assoc_args = array_merge( $defaults, $assoc_args );
 
 		parent::_delete( $args, $assoc_args, function ( $post_id, $assoc_args ) {
+			$status = get_post_status( $post_id );
 			$r = wp_delete_post( $post_id, $assoc_args['force'] );
 
 			if ( $r ) {
-				$action = $assoc_args['force'] ? 'Deleted' : 'Trashed';
+				$action = $assoc_args['force'] || 'trash' === $status ? 'Deleted' : 'Trashed';
 
 				return array( 'success', "$action post $post_id." );
 			} else {
@@ -357,7 +360,7 @@ class Post_Command extends \WP_CLI\CommandWithDBObject {
 			$post_author = $user_fetcher->get_check( $post_author )->ID;
 		}
 
-		if ( isset( $assoc_args['post_content'] ) ) {
+		if ( \WP_CLI\Utils\get_flag_value( $assoc_args, 'post_content' ) ) {
 			$post_content = file_get_contents( 'php://stdin' );
 		}
 

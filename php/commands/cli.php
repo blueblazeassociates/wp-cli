@@ -48,7 +48,7 @@ class CLI_Command extends WP_CLI_Command {
 
 		$runner = WP_CLI::get_runner();
 
-		if ( isset( $assoc_args['format'] ) && 'json' === $assoc_args['format'] ) {
+		if ( \WP_CLI\Utils\get_flag_value( $assoc_args, 'format' ) === 'json' ) {
 			$info = array(
 				'php_binary_path' => $php_bin,
 				'global_config_path' => $runner->global_config_path,
@@ -237,10 +237,10 @@ class CLI_Command extends WP_CLI_Command {
 				$update_type = 'patch';
 			}
 
-			if ( ! ( isset( $assoc_args['patch'] ) && $assoc_args['patch'] && 'patch' !== $update_type )
-				&& ! ( isset( $assoc_args['patch'] ) && ! $assoc_args['patch'] && 'patch' === $update_type )
-				&& ! ( isset( $assoc_args['minor'] ) && $assoc_args['minor'] && 'minor' !== $update_type )
-				&& ! ( isset( $assoc_args['minor'] ) && ! $assoc_args['minor'] && 'minor' === $update_type )
+			if ( ! ( \WP_CLI\Utils\get_flag_value( $assoc_args, 'patch' ) && 'patch' !== $update_type )
+				&& ! ( \WP_CLI\Utils\get_flag_value( $assoc_args, 'patch' ) === false && 'patch' === $update_type )
+				&& ! ( \WP_CLI\Utils\get_flag_value( $assoc_args, 'minor' ) && 'minor' !== $update_type )
+				&& ! ( \WP_CLI\Utils\get_flag_value( $assoc_args, 'minor' ) === false && 'minor' === $update_type )
 				&& ! $this->same_minor_release( $release_parts, $updates )
 				) {
 				$updates[] = array(
@@ -255,12 +255,39 @@ class CLI_Command extends WP_CLI_Command {
 	}
 
 	/**
-	 * Dump the list of global parameters, as JSON.
+	 * Dump the list of global parameters, as JSON or in var_export format.
+	 *
+	 * ## OPTIONS
+	 *
+	 * [--with-values]
+	 * : Display current values also.
+	 *
+	 * [--format=<format>]
+	 * : Accepted values: var_export, json. Default: json.
 	 *
 	 * @subcommand param-dump
 	 */
-	public function param_dump() {
-		echo json_encode( \WP_CLI::get_configurator()->get_spec() );
+	function param_dump( $_, $assoc_args ) {
+		$spec = \WP_CLI::get_configurator()->get_spec();
+
+		if ( \WP_CLI\Utils\get_flag_value( $assoc_args, 'with-values' ) ) {
+			$config = \WP_CLI::get_configurator()->to_array();
+			// Copy current config values to $spec
+			foreach ( $spec as $key => $value ) {
+				if ( isset( $config[0][$key] ) ) {
+					$current = $config[0][$key];
+				} else {
+					$current = NULL;
+				}
+				$spec[$key]['current'] = $current;
+			}
+		}
+
+		if ( 'var_export' === \WP_CLI\Utils\get_flag_value( $assoc_args, 'format' ) ) {
+			var_export( $spec );
+		} else {
+			echo json_encode( $spec );
+		}
 	}
 
 	/**
