@@ -133,12 +133,10 @@ class CLI_Command extends WP_CLI_Command {
 	 *
 	 * [--yes]
 	 * : Do not prompt for confirmation
-	 *
-	 * @subcommand update
 	 */
 	public function update( $_, $assoc_args ) {
-		if ( 0 !== strpos( WP_CLI_ROOT, 'phar://' ) ) {
-			WP_CLI::error( "You can only self-update PHARs" );
+		if ( ! Utils\inside_phar() ) {
+			WP_CLI::error( "You can only self-update Phar files." );
 		}
 
 		$old_phar = realpath( $_SERVER['argv'][0] );
@@ -177,7 +175,7 @@ class CLI_Command extends WP_CLI_Command {
 		if ( 0 !== $status ) {
 			WP_CLI::error_multi_line( $output );
 
-			WP_CLI::error( 'The downloaded PHAR is broken, try running wp cli self-update again.' );
+			WP_CLI::error( 'The downloaded PHAR is broken, try running wp cli update again.' );
 		}
 
 		WP_CLI::log( 'New version works. Proceeding to replace.' );
