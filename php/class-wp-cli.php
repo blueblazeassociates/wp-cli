@@ -478,9 +478,11 @@ class WP_CLI {
 	 *
 	 * @param array
 	 * @param array
+   * @param bool
 	 */
-	public static function run_command( $args, $assoc_args = array() ) {
-		self::get_runner()->run_command( $args, $assoc_args );
+	public static function run_command( $args, $assoc_args = array(), $interactive = true ) {
+	  // egifford 2015_02_10: Added $interactive parameter. This allows WP-CLI to be run in non-interactive mode.
+		self::get_runner()->run_command( $args, $assoc_args, $interactive );
 	}
 
 

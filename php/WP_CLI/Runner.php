@@ -185,7 +185,10 @@ class Runner {
 	 * @param string $path
 	 */
 	private static function set_wp_root( $path ) {
-		define( 'ABSPATH', rtrim( $path, '/' ) . '/' );
+		if ( ! defined ('ABSPATH') ) {
+		  // egifford 2015_02_10: Guard against redefining ABSPATH.
+  		define( 'ABSPATH', rtrim( $path, '/' ) . '/' );
+	  }
 		WP_CLI::debug( 'ABSPATH defined: ' . ABSPATH );
 
 		$_SERVER['DOCUMENT_ROOT'] = realpath( $path );
@@ -289,11 +292,17 @@ class Runner {
 	 *
 	 * @param array $args Positional arguments including command name
 	 * @param array $assoc_args
+   * @param bool
 	 */
-	public function run_command( $args, $assoc_args = array() ) {
+	public function run_command( $args, $assoc_args = array(), $interactive = true ) {
 		$r = $this->find_command_to_run( $args );
 		if ( is_string( $r ) ) {
-			WP_CLI::error( $r );
+		  if ( $interactive ) {
+		    // egifford 2015_02_10: Added $interactive parameter. This allows WP-CLI to be run in non-interactive mode.
+		    WP_CLI::error( $r );
+		  } else {
+		    throw new \RuntimeException( $r );
+		  }
 		}
 
 		list( $command, $final_args, $cmd_path ) = $r;
@@ -310,7 +319,12 @@ class Runner {
 		try {
 			$command->invoke( $final_args, $assoc_args, $extra_args );
 		} catch ( WP_CLI\Iterators\Exception $e ) {
-			WP_CLI::error( $e->getMessage() );
+			if ( $interactive ) {
+			  // egifford 2015_02_10: Added $interactive parameter. This allows WP-CLI to be run in non-interactive mode.
+			  WP_CLI::error( $e->getMessage() );
+			} else {
+			  throw new \RuntimeException( $e->getMessage() );
+			}
 		}
 	}
 
