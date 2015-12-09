@@ -471,17 +471,28 @@ class Menu_Item_Command extends WP_CLI_Command {
 	 *
 	 * ## EXAMPLES
 	 *
-	 *     wp menu item remove 45
+	 *     wp menu item delete 45
 	 *
 	 * @subcommand delete
 	 */
 	public function delete( $args, $_ ) {
+		global $wpdb;
 
 		foreach( $args as $arg ) {
 
+			$parent_menu_id = (int) get_post_meta( $arg, '_menu_item_menu_item_parent', true );
 			$ret = wp_delete_post( $arg, true );
 			if ( ! $ret ) {
 				WP_CLI::warning( "Couldn't delete menu item." );
+			} else if ( $parent_menu_id ) {
+				$children = $wpdb->get_results( $wpdb->prepare( "SELECT post_id FROM $wpdb->postmeta WHERE meta_key='_menu_item_menu_item_parent' AND meta_value=%s", (int) $arg ) );
+				if ( $children ) {
+					$children_query = $wpdb->prepare( "UPDATE $wpdb->postmeta SET meta_value = %d WHERE meta_key = '_menu_item_menu_item_parent' AND meta_value=%s", $parent_menu_id, (int) $arg );
+					$wpdb->query( $children_query );
+					foreach( $children as $child ) {
+						clean_post_cache( $child );
+					}
+				}
 			}
 
 		}

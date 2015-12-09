@@ -8,7 +8,7 @@ Feature: Manage WordPress plugins
     When I run `wp plugin scaffold --skip-tests plugin1`
     Then STDOUT should not be empty
     And the {PLUGIN_DIR}/plugin1/plugin1.php file should exist
-    And the {PLUGIN_DIR}/zombieland/phpunit.xml file should not exist
+    And the {PLUGIN_DIR}/zombieland/phpunit.xml.dist file should not exist
 
     When I run `wp plugin path plugin1`
     Then STDOUT should be:
@@ -25,7 +25,7 @@ Feature: Manage WordPress plugins
     When I run `wp plugin scaffold Zombieland`
     Then STDOUT should not be empty
     And the {PLUGIN_DIR}/Zombieland/Zombieland.php file should exist
-    And the {PLUGIN_DIR}/Zombieland/phpunit.xml file should exist
+    And the {PLUGIN_DIR}/Zombieland/phpunit.xml.dist file should exist
 
     # Ensure case sensitivity
     When I try `wp plugin status zombieLand`
@@ -118,8 +118,11 @@ Feature: Manage WordPress plugins
       Error: Please specify one or more plugins, or use --all.
       """
 
-    When I run `wp plugin update --all`
-    Then STDOUT should not be empty
+    When I run `wp plugin update --all --format=summary | grep 'updated successfully from'`
+    Then STDOUT should contain:
+      """
+      Akismet updated successfully from version 2.5.6 to version
+      """
 
   Scenario: Activate a network-only plugin on single site
     Given a WP install

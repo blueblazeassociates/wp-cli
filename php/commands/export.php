@@ -32,10 +32,15 @@ class Export_Command extends WP_CLI_Command {
 	 * : Export only posts published before this date, in format YYYY-MM-DD.
 	 *
 	 * [--post_type=<post-type>]
-	 * : Export only posts with this post_type. Defaults to all.
+	 * : Export only posts with this post_type. Separate multiple post types with a
+	 * comma. Defaults to all.
+	 *
+	 * [--post_type__not_in=<post-type>]
+	 * : Export all post types except those identified. Seperate multiple post types
+	 * with a comma. Defaults to none.
 	 *
 	 * [--post__in=<pid>]
-	 * : Export all posts specified as a comma-separated list of IDs.
+	 * : Export all posts specified as a comma- or space-separated list of IDs.
 	 *
 	 * [--start_id=<pid>]
 	 * : Export only posts with IDs greater than or equal to this post ID.
@@ -57,17 +62,18 @@ class Export_Command extends WP_CLI_Command {
 	 */
 	public function __invoke( $_, $assoc_args ) {
 		$defaults = array(
-			'dir'             => NULL,
-			'start_date'      => NULL,
-			'end_date'        => NULL,
-			'post_type'       => NULL,
-			'author'          => NULL,
-			'category'        => NULL,
-			'post_status'     => NULL,
-			'post__in'        => NULL,
-			'start_id'        => NULL,
-			'skip_comments'   => NULL,
-			'max_file_size'   => 15,
+			'dir'               => NULL,
+			'start_date'        => NULL,
+			'end_date'          => NULL,
+			'post_type'         => NULL,
+			'post_type__not_in' => NULL,
+			'author'            => NULL,
+			'category'          => NULL,
+			'post_status'       => NULL,
+			'post__in'          => NULL,
+			'start_id'          => NULL,
+			'skip_comments'     => NULL,
+			'max_file_size'     => 15,
 		);
 
 		$this->validate_args( wp_parse_args( $assoc_args, $defaults ) );
@@ -180,15 +186,46 @@ class Export_Command extends WP_CLI_Command {
 	}
 
 	private function check_post_type( $post_type ) {
-		if ( is_null( $post_type ) )
+		if ( is_null( $post_type ) || 'any' === $post_type )
 			return true;
 
+		$post_type = array_unique( array_filter( explode( ',', $post_type ) ) );
 		$post_types = get_post_types();
-		if ( !in_array( $post_type, $post_types ) ) {
-			WP_CLI::warning( sprintf( 'The post type %s does not exist. Choose "all" or any of these existing post types instead: %s', $post_type, implode( ", ", $post_types ) ) );
-			return false;
+
+		foreach ( $post_type as $type ) {
+			if ( ! in_array( $type, $post_types ) ) {
+				WP_CLI::warning( sprintf(
+					'The post type %s does not exist. Choose "any" or any of these existing post types instead: %s',
+					$type,
+					implode( ", ", $post_types )
+				) );
+				return false;
+			}
 		}
 		$this->export_args['post_type'] = $post_type;
+		return true;
+	}
+
+	private function check_post_type__not_in( $post_type ) {
+		if ( is_null( $post_type ) ) {
+			return true;
+		}
+
+		$post_type = array_unique( array_filter( explode( ',', $post_type ) ) );
+		$post_types = get_post_types();
+
+		$keep_post_types = array();
+		foreach ( $post_type as $type ) {
+			if ( ! in_array( $type, $post_types ) ) {
+				WP_CLI::warning( sprintf(
+					'The post type %s does not exist. Use any of these existing post types instead: %s',
+					$type,
+					implode( ", ", $post_types )
+				) );
+				return false;
+			}
+		}
+		$this->export_args['post_type'] = array_diff( $post_types, $post_type );
 		return true;
 	}
 
@@ -196,7 +233,8 @@ class Export_Command extends WP_CLI_Command {
 		if ( is_null( $post__in ) )
 			return true;
 
-		$post__in = array_unique( array_map( 'intval', explode( ',', $post__in ) ) );
+		$separator = false !== stripos( $post__in, ' ' ) ? ' ' : ',';
+		$post__in = array_unique( array_map( 'intval', explode( $separator, $post__in ) ) );
 		if ( empty( $post__in ) ) {
 			WP_CLI::warning( "post__in should be comma-separated post IDs" );
 			return false;

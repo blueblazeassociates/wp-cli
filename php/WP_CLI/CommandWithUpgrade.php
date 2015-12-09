@@ -14,7 +14,9 @@ abstract class CommandWithUpgrade extends \WP_CLI_Command {
 		// After updating plugins/themes also update translations by running the `core language update` command.
 		add_action( 'upgrader_process_complete', function() {
 			remove_action( 'upgrader_process_complete', array( 'Language_Pack_Upgrader', 'async_upgrade' ), 20 );
-			\WP_CLI::run_command( array( 'core', 'language', 'update' ), array( 'dry-run' => false ) );
+			if ( Utils\wp_version_compare( '4.0', '>=' ) ) {
+				\WP_CLI::run_command( array( 'core', 'language', 'update' ), array( 'dry-run' => false ) );
+			}
 		}, 1 );
 	}
 
@@ -121,15 +123,9 @@ abstract class CommandWithUpgrade extends \WP_CLI_Command {
 			$local_or_remote_zip_file = false;
 			$result = false;
 
-			// Check if a URL to a remote zip file has been specified
-			$url_path = parse_url( $slug, PHP_URL_PATH );
-			if ( ! empty( $url_path ) && '.zip' === substr( $url_path, - 4 ) ) {
+			// Check if a URL to a remote or local zip has been specified
+			if ( strpos( $slug, '://' ) !== false || ( pathinfo( $slug, PATHINFO_EXTENSION ) === 'zip' && is_file( $slug ) ) ) {
 				$local_or_remote_zip_file = $slug;
-			} else {
-				// Check if a local zip file has been specified
-				if ( 'zip' === pathinfo( $slug, PATHINFO_EXTENSION ) && file_exists( $slug ) ) {
-					$local_or_remote_zip_file = $slug;
-				}
 			}
 
 			if ( $local_or_remote_zip_file ) {
@@ -145,7 +141,14 @@ abstract class CommandWithUpgrade extends \WP_CLI_Command {
 				$result = $this->install_from_repo( $slug, $assoc_args );
 
 				if ( is_wp_error( $result ) ) {
-					\WP_CLI::warning( "$slug: " . $result->get_error_message() );
+
+					$key = $result->get_error_code();
+					if ( in_array( $result->get_error_code(), array( 'plugins_api_failed', 'themes_api_failed' ) )
+						&& ! empty( $result->error_data[ $key ] ) && in_array( $result->error_data[ $key ], array( 'N;', 'b:0;' ) ) ) {
+						\WP_CLI::warning( "Couldn't find '$slug' in the WordPress.org {$this->item_type} directory." );
+					} else {
+						\WP_CLI::warning( "$slug: " . $result->get_error_message() );
+					}
 				}
 			}
 
@@ -179,10 +182,12 @@ abstract class CommandWithUpgrade extends \WP_CLI_Command {
 
 		list( $link ) = explode( $response->slug, $response->download_link );
 
-		if ( false !== strpos( $response->download_link, 'theme' ) )
+		if ( false !== strpos( $response->download_link, '/theme/' ) )
 			$download_type = 'theme';
-		else
+		else if ( false !== strpos( $response->download_link, '/plugin/' ) )
 			$download_type = 'plugin';
+		else
+			$download_type = 'plugin/theme';
 
 		if ( 'dev' == $version ) {
 			$response->download_link = $link . $response->slug . '.zip';
@@ -264,18 +269,24 @@ abstract class CommandWithUpgrade extends \WP_CLI_Command {
 			\WP_CLI::error( $line );
 		}
 
-		if ($num_to_update > 0) {
-			$status = array();
-			foreach($items_to_update as $item_to_update => $info) {
-				$status[$item_to_update] = array(
-					'name' => $info['name'],
-					'old_version' => $info['version'],
-					'new_version' => $info['update_version'],
-					'status' => $result[$item_to_update] !== null ? 'Updated' : 'Error',
-				);
+		if ( $num_to_update > 0 ) {
+			if ( ! empty( $assoc_args['format'] ) && 'summary' === $assoc_args['format'] ) {
+				foreach( $items_to_update as $item_to_update => $info ) {
+					$message = $result[ $info['update_id'] ] !== null ? 'updated successfully' : 'did not update';
+					\WP_CLI::log( "{$info['title']} {$message} from version {$info['version']} to version {$info['update_version']}" );
+				}
+			} else {
+				$status = array();
+				foreach($items_to_update as $item_to_update => $info) {
+					$status[$item_to_update] = array(
+						'name' => $info['name'],
+						'old_version' => $info['version'],
+						'new_version' => $info['update_version'],
+						'status' => $result[ $info['update_id'] ] !== null ? 'Updated' : 'Error',
+					);
+				}
+				\WP_CLI\Utils\format_items( 'table', $status, array( 'name', 'old_version', 'new_version', 'status' ) );
 			}
-			\WP_CLI\Utils\format_items( 'table', $status,
-				array( 'name', 'old_version', 'new_version', 'status' ) );
 		}
 	}
 

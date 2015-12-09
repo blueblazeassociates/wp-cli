@@ -112,6 +112,7 @@ Feature: WordPress code scaffolding
 
     When I run `wp scaffold plugin hello-world`
     Then STDOUT should not be empty
+    And the {PLUGIN_DIR}/hello-world/.editorconfig file should exist
     And the {PLUGIN_DIR}/hello-world/hello-world.php file should exist
     And the {PLUGIN_DIR}/hello-world/readme.txt file should exist
     And the {PLUGIN_DIR}/hello-world/package.json file should exist
@@ -140,6 +141,7 @@ Feature: WordPress code scaffolding
 
     When I run `wp scaffold plugin hello-world --skip-tests`
     Then STDOUT should not be empty
+    And the {PLUGIN_DIR}/hello-world/.editorconfig file should exist
     And the {PLUGIN_DIR}/hello-world/hello-world.php file should exist
     And the {PLUGIN_DIR}/hello-world/readme.txt file should exist
     And the {PLUGIN_DIR}/hello-world/tests directory should not exist
@@ -159,7 +161,7 @@ Feature: WordPress code scaffolding
       """
       install-wp-tests.sh
       """
-    And the {PLUGIN_DIR}/hello-world/phpunit.xml file should exist
+    And the {PLUGIN_DIR}/hello-world/phpunit.xml.dist file should exist
     And the {PLUGIN_DIR}/hello-world/.travis.yml file should exist
 
     When I run `wp eval "if ( is_executable( '{PLUGIN_DIR}/hello-world/bin/install-wp-tests.sh' ) ) { echo 'executable'; } else { exit( 1 ); }"`
@@ -320,6 +322,23 @@ Feature: WordPress code scaffolding
     require dirname( dirname( __FILE__ ) ) . '/custom-plugin-slug.php';
     """
 
+  Scenario: Scaffold tests parses plugin readme.txt
+    Given a WP install
+    When I run `wp plugin path`
+    Then save STDOUT as {PLUGIN_DIR}
+
+    When I run `wp scaffold plugin hello-world`
+    Then STDOUT should not be empty
+    And the {PLUGIN_DIR}/hello-world/readme.txt file should exist
+    And the {PLUGIN_DIR}/hello-world/.travis.yml file should exist
+    And the {PLUGIN_DIR}/hello-world/.travis.yml file should contain:
+      """
+      env:
+        - WP_VERSION=latest WP_MULTISITE=0
+        - WP_VERSION=3.0.1 WP_MULTISITE=0
+        - WP_VERSION=3.4 WP_MULTISITE=0
+      """
+
   Scenario: Scaffold starter code for a theme and network enable it
     Given a WP multisite install
     When I run `wp scaffold _s starter-theme --enable-network`
@@ -349,3 +368,11 @@ Feature: WordPress code scaffolding
     """
     Replacing
     """
+  Scenario: Scaffold tests for invalid plugin directory
+    Given a WP install
+
+    When I try `wp scaffold plugin-tests incorrect-custom-plugin`
+    Then STDERR should contain:
+      """
+      Error: Invalid plugin slug specified.
+      """

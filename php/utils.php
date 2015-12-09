@@ -4,6 +4,8 @@
 
 namespace WP_CLI\Utils;
 
+use \Composer\Semver\Comparator;
+use \Composer\Semver\Semver;
 use \WP_CLI\Dispatcher;
 use \WP_CLI\Iterators\Transform;
 
@@ -24,7 +26,7 @@ function extract_from_phar( $path ) {
 	copy( $path, $tmp_path );
 
 	register_shutdown_function( function() use ( $tmp_path ) {
-		unlink( $tmp_path );
+		@unlink( $tmp_path );
 	} );
 
 	return $tmp_path;
@@ -53,10 +55,18 @@ function load_dependencies() {
 }
 
 function get_vendor_paths() {
-	return array(
+	$vendor_paths = array(
 		WP_CLI_ROOT . '/../../../vendor',  // part of a larger project / installed via Composer (preferred)
 		WP_CLI_ROOT . '/vendor',           // top-level project / installed as Git clone
 	);
+	$maybe_composer_json = WP_CLI_ROOT . '/../../../composer.json';
+	if ( file_exists( $maybe_composer_json ) && is_readable( $maybe_composer_json ) ) {
+		$composer = json_decode( file_get_contents( $maybe_composer_json ) );
+		if ( ! empty( $composer->{'vendor-dir'} ) ) {
+			array_unshift( $vendor_paths, WP_CLI_ROOT . '/../../../' . $composer->{'vendor-dir'} );
+		}
+	}
+	return $vendor_paths;
 }
 
 // Using require() directly inside a class grants access to private methods to the loaded code
@@ -132,7 +142,7 @@ function find_file_upward( $files, $dir = null, $stop_check = null ) {
 	if ( is_null( $dir ) ) {
 		$dir = getcwd();
 	}
-	while ( is_readable( $dir ) ) {
+	while ( @is_readable( $dir ) ) {
 		// Stop walking up when the supplied callable returns true being passed the $dir
 		if ( is_callable( $stop_check ) && call_user_func( $stop_check, $dir ) ) {
 			return null;
@@ -222,6 +232,10 @@ function locate_wp_config() {
 	}
 
 	return $path;
+}
+
+function wp_version_compare( $since, $operator ) {
+	return version_compare( str_replace( array( '-src' ), '', $GLOBALS['wp_version'] ), $since, $operator );
 }
 
 /**
@@ -525,6 +539,31 @@ function increment_version( $current_version, $new_version ) {
 	$current_version    = implode( '-', $current_version );
 
 	return $current_version;
+}
+
+/**
+ * Compare two version strings to get the named semantic version
+ *
+ * @param string $new_version
+ * @param string $original_version
+ * @return string $name 'major', 'minor', 'patch'
+ */
+function get_named_sem_ver( $new_version, $original_version ) {
+
+	if ( ! Comparator::greaterThan( $new_version, $original_version ) ) {
+		return '';
+	}
+
+	$parts = explode( '-', $original_version );
+	list( $major, $minor, $patch ) = explode( '.', $parts[0] );
+
+	if ( Semver::satisfies( $new_version, "{$major}.{$minor}.x" ) ) {
+		return 'patch';
+	} else if ( Semver::satisfies( $new_version, "{$major}.x.x" ) ) {
+		return 'minor';
+	} else {
+		return 'major';
+	}
 }
 
 /**

@@ -23,17 +23,26 @@ class Rewrite_Command extends WP_CLI_Command {
 	 * ## OPTIONS
 	 *
 	 * [--hard]
-	 * : Perform a hard flush - update `.htaccess` rules as well as rewrite rules in database.
+	 * : Perform a hard flush - update `.htaccess` rules as well as rewrite rules in database. Works only on single site installs.
 	 */
 	public function flush( $args, $assoc_args ) {
 		// make sure we detect mod_rewrite if configured in apache_modules in config
 		self::apache_modules();
+
 		if ( \WP_CLI\Utils\get_flag_value( $assoc_args, 'hard' ) && ! in_array( 'mod_rewrite', (array) WP_CLI::get_config( 'apache_modules' ) ) ) {
 			WP_CLI::warning( "Regenerating a .htaccess file requires special configuration. See usage docs." );
 		}
+
+		if ( \WP_CLI\Utils\get_flag_value( $assoc_args, 'hard' ) && is_multisite() ) {
+			WP_CLI::warning( "WordPress can't generate .htaccess file for a multisite install." );
+		}
+
 		flush_rewrite_rules( \WP_CLI\Utils\get_flag_value( $assoc_args, 'hard' ) );
+
 		if ( ! get_option( 'rewrite_rules' ) ) {
 			WP_CLI::warning( "Rewrite rules are empty, possibly because of a missing permalink_structure option. Use 'wp rewrite list' to verify, or 'wp rewrite structure' to update permalink_structure." );
+		} else {
+			WP_CLI::success( 'Rewrite rules flushed.' );
 		}
 	}
 
@@ -47,8 +56,8 @@ class Rewrite_Command extends WP_CLI_Command {
 	 * To regenerate a .htaccess file with WP-CLI, you'll need to add the mod_rewrite module
 	 * to your wp-cli.yml or config.yml. For example:
 	 *
-	 * apache_modules:
-	 *   - mod_rewrite
+	 * `apache_modules:
+	 *   - mod_rewrite`
 	 *
 	 * ## OPTIONS
 	 *
@@ -122,7 +131,11 @@ class Rewrite_Command extends WP_CLI_Command {
 			}
 		}
 
-		\WP_CLI::launch_self( 'rewrite flush', array(), $new_assoc_args );
+		$process_run = WP_CLI::launch_self( 'rewrite flush', array(), $new_assoc_args, true, true, array( 'apache_modules', WP_CLI::get_config( 'apache_modules' ) ) );
+		if ( ! empty( $process_run->stderr ) ) {
+			// Strip "Warning: "
+			WP_CLI::warning( substr( $process_run->stderr, 9 ) );
+		}
 
 		WP_CLI::success( "Rewrite structure set." );
 	}
@@ -137,6 +150,9 @@ class Rewrite_Command extends WP_CLI_Command {
 	 *
 	 * [--source=<source>]
 	 * : Show rewrite rules from a particular source.
+	 *
+	 * [--fields=<fields>]
+	 * : Limit the output to specific fields. Defaults to match,query,source.
 	 *
 	 * [--format=<format>]
 	 * : Accepted values: table, csv, json, count. Default: table
@@ -159,7 +175,8 @@ class Rewrite_Command extends WP_CLI_Command {
 		$defaults = array(
 			'source' => '',
 			'match'  => '',
-			'format' => 'table'
+			'format' => 'table',
+			'fields' => 'match,query,source',
 		);
 		$assoc_args = array_merge( $defaults, $assoc_args );
 
@@ -208,7 +225,7 @@ class Rewrite_Command extends WP_CLI_Command {
 			$rule_list[] = compact( 'match', 'query', 'source' );
 		}
 
-		WP_CLI\Utils\format_items( $assoc_args['format'], $rule_list, array('match', 'query', 'source' ) );
+		WP_CLI\Utils\format_items( $assoc_args['format'], $rule_list, explode( ',', $assoc_args['fields'] ) );
 	}
 
 	/**
@@ -222,7 +239,7 @@ class Rewrite_Command extends WP_CLI_Command {
 	 * to see:
 	 *
 	 * 1. if the $is_apache variable is set.
-	 * 2. if the mod_rewrite module is returned from the apche_get_modules
+	 * 2. if the mod_rewrite module is returned from the apache_get_modules
 	 *    function.
 	 *
 	 * To get this to work with wp-cli you'll need to add the mod_rewrite module

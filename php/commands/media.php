@@ -57,14 +57,21 @@ class Media_Command extends WP_CLI_Command {
 		WP_CLI::log( sprintf( 'Found %1$d %2$s to regenerate.', $count,
 			_n( 'image', 'images', $count ) ) );
 
+		$errored = false;
 		foreach ( $images->posts as $id ) {
-			$this->_process_regeneration( $id, $skip_delete );
+			if ( ! $this->_process_regeneration( $id, $skip_delete ) ) {
+				$errored = true;
+			}
 		}
 
-		WP_CLI::success( sprintf(
-			'Finished regenerating %1$s.',
-			_n('the image', 'all images', $count)
-		) );
+		if ( $errored ) {
+			WP_CLI::log( _n( 'An error occurred with image regeneration.', 'An error occurred regenerating one or more images.', $count ) );
+		} else {
+			WP_CLI::success( sprintf(
+				'Finished regenerating %1$s.',
+				_n('the image', 'all images', $count)
+			) );
+		}
 	}
 
 	/**
@@ -111,10 +118,10 @@ class Media_Command extends WP_CLI_Command {
 	 */
 	function import( $args, $assoc_args = array() ) {
 		$assoc_args = wp_parse_args( $assoc_args, array(
-			'title' => null,
-			'caption' => null,
-			'alt' => null,
-			'desc' => null
+			'title' => '',
+			'caption' => '',
+			'alt' => '',
+			'desc' => '',
 		) );
 
 		if ( isset( $assoc_args['post_id'] ) ) {
@@ -204,36 +211,35 @@ class Media_Command extends WP_CLI_Command {
 	}
 
 	private function _process_regeneration( $id, $skip_delete = false ) {
-		$image = get_post( $id );
 
-		$fullsizepath = get_attached_file( $image->ID );
+		$fullsizepath = get_attached_file( $id );
 
-		$att_desc = sprintf( '"%1$s" (ID %2$d).', get_the_title( $image->ID ), $image->ID );
+		$att_desc = sprintf( '"%1$s" (ID %2$d).', get_the_title( $id ), $id );
 
 		if ( false === $fullsizepath || !file_exists( $fullsizepath ) ) {
 			WP_CLI::warning( "Can't find $att_desc" );
-			return;
+			return false;
 		}
 
 		if ( ! $skip_delete ) {
-			$this->remove_old_images( $image->ID );
+			$this->remove_old_images( $id );
 		}
 
-		$metadata = wp_generate_attachment_metadata( $image->ID, $fullsizepath );
+		$metadata = wp_generate_attachment_metadata( $id, $fullsizepath );
 		if ( is_wp_error( $metadata ) ) {
 			WP_CLI::warning( $metadata->get_error_message() );
-			return;
+			return false;
 		}
 
 		if ( empty( $metadata ) ) {
 			WP_CLI::warning( "Couldn't regenerate thumbnails for $att_desc." );
-			return;
+			return false;
 		}
 
-		wp_update_attachment_metadata( $image->ID, $metadata );
+		wp_update_attachment_metadata( $id, $metadata );
 
 		WP_CLI::log( "Regenerated thumbnails for $att_desc" );
-
+		return true;
 	}
 
 	private function remove_old_images( $att_id ) {

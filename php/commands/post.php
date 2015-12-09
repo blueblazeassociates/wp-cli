@@ -91,6 +91,9 @@ class Post_Command extends \WP_CLI\CommandWithDBObject {
 	 * --<field>=<value>
 	 * : One or more fields to update. See wp_update_post().
 	 *
+	 * [--defer-term-counting]
+	 * : Recalculate term count in batch, for a performance boost.
+	 *
 	 * ## EXAMPLES
 	 *
 	 *     wp post update 123 --post_name=something --post_status=draft
@@ -105,6 +108,10 @@ class Post_Command extends \WP_CLI\CommandWithDBObject {
 			$assoc_args['post_content'] = $this->read_from_file_or_stdin( $arg );
 			unset( $args[ $key ] );
 			break;
+		}
+
+		if ( isset( $assoc_args['post_category'] ) ) {
+			$assoc_args['post_category'] = explode( ',', $assoc_args['post_category'] );
 		}
 
 		parent::_update( $args, $assoc_args, function ( $params ) {
@@ -189,6 +196,9 @@ class Post_Command extends \WP_CLI\CommandWithDBObject {
 	 * [--force]
 	 * : Skip the trash bin.
 	 *
+	 * [--defer-term-counting]
+	 * : Recalculate term count in batch, for a performance boost.
+	 *
 	 * ## EXAMPLES
 	 *
 	 *     wp post delete 123 --force
@@ -266,6 +276,7 @@ class Post_Command extends \WP_CLI\CommandWithDBObject {
 	 * * post_mime_type
 	 * * comment_count
 	 * * filter
+	 * * url
 	 *
 	 * ## EXAMPLES
 	 *
@@ -276,6 +287,8 @@ class Post_Command extends \WP_CLI\CommandWithDBObject {
 	 *     wp post list --post_type=page --fields=post_title,post_status
 	 *
 	 *     wp post list --post_type=page,post --format=ids
+	 *
+	 *     wp post list --post__in=1,3
 	 *
 	 * @subcommand list
 	 */
@@ -301,7 +314,11 @@ class Post_Command extends \WP_CLI\CommandWithDBObject {
 			echo implode( ' ', $query->posts );
 		} else {
 			$query = new WP_Query( $query_args );
-			$formatter->display_items( $query->posts );
+			$posts = array_map( function( $post ) {
+				$post->url = get_permalink( $post->ID );
+				return $post;
+			}, $query->posts );
+			$formatter->display_items( $posts );
 		}
 	}
 
@@ -418,24 +435,6 @@ class Post_Command extends \WP_CLI\CommandWithDBObject {
 		}
 		$notify->finish();
 		// @codingStandardsIgnoreEnd
-	}
-
-	/**
-	 * Get post url
-	 *
-	 * ## OPTIONS
-	 *
-	 * <id>...
-	 * : One or more IDs of posts get the URL.
-	 *
-	 * ## EXAMPLES
-	 *
-	 *     wp post url 123
-	 *
-	 *     wp post url 123 324
-	 */
-	public function url( $args ) {
-		parent::_url( $args, 'get_permalink' );
 	}
 
 	private function maybe_make_child() {

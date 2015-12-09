@@ -78,8 +78,11 @@ Feature: Manage WordPress themes
       Error: Please specify one or more themes, or use --all.
       """
 
-    When I run `wp theme update --all`
-    Then STDOUT should not be empty
+    When I run `wp theme update --all --format=summary | grep 'updated successfully from'`
+    Then STDOUT should contain:
+      """
+      P2 updated successfully from version 1.4.1 to version
+      """
 
   Scenario: Get the path of an installed theme
     Given a WP install
@@ -235,3 +238,14 @@ Feature: Manage WordPress themes
       """
       Error: The 'biker' theme cannot be activated without its parent, 'jolene'.
       """
+
+  Scenario: List an active theme with its parent
+    Given a WP install
+    And I run `wp theme install jolene`
+    And I run `wp theme install --activate biker`
+
+    When I run `wp theme list --fields=name,status`
+    Then STDOUT should be a table containing rows:
+      | name          | status   |
+      | biker         | active   |
+      | jolene        | parent   |

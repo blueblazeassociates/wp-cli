@@ -14,7 +14,19 @@ class Cache_Command extends WP_CLI_Command {
 	/**
 	 * Add a value to the object cache.
 	 *
-	 * @synopsis <key> <value> [<group>] [<expiration>]
+	 * If a value already exists for the key, the value isn't added.
+	 *
+	 * <key>
+	 * : Cache key.
+	 *
+	 * <value>
+	 * : Value to add to the key.
+	 *
+	 * [<group>]
+	 * : Method for grouping data within the cache which allows the same key to be used across groups.
+	 *
+	 * [<expiration>]
+	 * : Define how long to keep the value, in seconds. Defaults to 0 (as long as possible).
 	 */
 	public function add( $args, $assoc_args ) {
 		list( $key, $value ) = $args;
@@ -33,7 +45,14 @@ class Cache_Command extends WP_CLI_Command {
 	/**
 	 * Decrement a value in the object cache.
 	 *
-	 * @synopsis <key> [<offset>] [<group>]
+	 * <key>
+	 * : Cache key.
+	 *
+	 * [<offset>]
+	 * : The amount by which to decrement the item's value. Default is 1.
+	 *
+	 * [<group>]
+	 * : Method for grouping data within the cache which allows the same key to be used across groups.
 	 */
 	public function decr( $args, $assoc_args ) {
 		$key = $args[0];
@@ -54,7 +73,11 @@ class Cache_Command extends WP_CLI_Command {
 	/**
 	 * Remove a value from the object cache.
 	 *
-	 * @synopsis <key> [<group>]
+	 * <key>
+	 * : Cache key.
+	 *
+	 * [<group>]
+	 * : Method for grouping data within the cache which allows the same key to be used across groups.
 	 */
 	public function delete( $args, $assoc_args ) {
 		$key = $args[0];
@@ -72,6 +95,9 @@ class Cache_Command extends WP_CLI_Command {
 
 	/**
 	 * Flush the object cache.
+	 *
+	 * For sites using a persistent object cache, because WordPress Multisite simply adds a blog id
+	 * to the cache key, flushing cache is typically a global operation.
 	 */
 	public function flush( $args, $assoc_args ) {
 		$value = wp_cache_flush();
@@ -86,7 +112,11 @@ class Cache_Command extends WP_CLI_Command {
 	/**
 	 * Get a value from the object cache.
 	 *
-	 * @synopsis <key> [<group>]
+	 * <key>
+	 * : Cache key.
+	 *
+	 * [<group>]
+	 * : Method for grouping data within the cache which allows the same key to be used across groups.
 	 */
 	public function get( $args, $assoc_args ) {
 		$key = $args[0];
@@ -105,7 +135,14 @@ class Cache_Command extends WP_CLI_Command {
 	/**
 	 * Increment a value in the object cache.
 	 *
-	 * @synopsis <key> [<offset>] [<group>]
+	 * <key>
+	 * : Cache key.
+	 *
+	 * [<offset>]
+	 * : The amount by which to increment the item's value. Default is 1.
+	 *
+	 * [<group>]
+	 * : Method for grouping data within the cache which allows the same key to be used across groups.
 	 */
 	public function incr( $args, $assoc_args ) {
 		$key = $args[0];
@@ -124,9 +161,19 @@ class Cache_Command extends WP_CLI_Command {
 	}
 
 	/**
-	 * Replace an existing value in the object cache.
+	 * Replace a value in the object cache, if the value already exists.
 	 *
-	 * @synopsis <key> <value> [<group>] [<expiration>]
+	 * <key>
+	 * : Cache key.
+	 *
+	 * <value>
+	 * : Value to replace.
+	 *
+	 * [<group>]
+	 * : Method for grouping data within the cache which allows the same key to be used across groups.
+	 *
+	 * [<expiration>]
+	 * : Define how long to keep the value, in seconds. Defaults to 0 (as long as possible).
 	 */
 	public function replace( $args, $assoc_args ) {
 		list( $key, $value ) = $args;
@@ -145,9 +192,19 @@ class Cache_Command extends WP_CLI_Command {
 	}
 
 	/**
-	 * Set a value to the object cache.
+	 * Set a value to the object cache, regardless of whether it already exists.
 	 *
-	 * @synopsis <key> <value> [<group>] [<expiration>]
+	 * <key>
+	 * : Cache key.
+	 *
+	 * <value>
+	 * : Value to set on the key.
+	 *
+	 * [<group>]
+	 * : Method for grouping data within the cache which allows the same key to be used across groups.
+	 *
+	 * [<expiration>]
+	 * : Define how long to keep the value, in seconds. Defaults to 0 (as long as possible).
 	 */
 	public function set( $args, $assoc_args ) {
 		list( $key, $value ) = $args;
@@ -173,47 +230,7 @@ class Cache_Command extends WP_CLI_Command {
 	 * problems with this function's ability to determine which object cache is being used.
 	 */
 	public function type( $args, $assoc_args ) {
-		global $_wp_using_ext_object_cache, $wp_object_cache;
-
-		if ( false !== $_wp_using_ext_object_cache ) {
-			// Test for Memcached PECL extension memcached object cache (https://github.com/tollmanz/wordpress-memcached-backend)
-			if ( isset( $wp_object_cache->m ) && is_a( $wp_object_cache->m, 'Memcached' ) ) {
-				$message = 'Memcached';
-
-			// Test for Memcache PECL extension memcached object cache (http://wordpress.org/extend/plugins/memcached/)
-			} elseif ( isset( $wp_object_cache->mc ) ) {
-				$is_memcache = true;
-				foreach ( $wp_object_cache->mc as $bucket ) {
-					if ( ! is_a( $bucket, 'Memcache' ) )
-						$is_memcache = false;
-				}
-
-				if ( $is_memcache )
-					$message = 'Memcache';
-
-			// Test for Xcache object cache (http://plugins.svn.wordpress.org/xcache/trunk/object-cache.php)
-			} elseif ( is_a( $wp_object_cache, 'XCache_Object_Cache' ) ) {
-				$message = 'Xcache';
-
-			// Test for WinCache object cache (http://wordpress.org/extend/plugins/wincache-object-cache-backend/)
-			} elseif ( class_exists( 'WinCache_Object_Cache' ) ) {
-				$message = 'WinCache';
-
-			// Test for APC object cache (http://wordpress.org/extend/plugins/apc/)
-			} elseif ( class_exists( 'APC_Object_Cache' ) ) {
-				$message = 'APC';
-
-			// Test for Redis Object Cache (https://github.com/alleyinteractive/wp-redis)
-			} elseif ( isset( $wp_object_cache->redis ) && is_a( $wp_object_cache->redis, 'Redis' ) ) {
-				$message = 'Redis';
-
-			} else {
-				$message = 'Unknown';
-			}
-		} else {
-			$message = 'Default';
-		}
-
+		$message = WP_CLI\Utils\wp_get_cache_type();
 		WP_CLI::line( $message );
 	}
 }
